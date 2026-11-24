@@ -1,5 +1,7 @@
 # Windows SIEM Query Guard
 
+Extract the ZIP and double-click Start.cmd for the guided Hinglish walkthrough. Practice mode uses separate example records. Choose Mere imported Windows logs to repeat the walkthrough with the accounts already imported by this Windows user. Import / full investigation opens the original advanced screen.
+
 Run `py investigate.py` from the extracted folder on Windows with Python 3.9 or later and Tkinter. All processing stays local.
 
 1. Choose **Read local Security log** to import the most recent 2,000 successful or failed sign-in events available to your Windows account. Alternatively use **Import XML** with a Windows Event Viewer XML export. The application reads on demand. Import again to refresh.

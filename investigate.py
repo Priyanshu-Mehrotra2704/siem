@@ -62,7 +62,10 @@ def live_xml():
                "/rd:true", "/c:2000", "/f:xml", "/e:Events", "/uni:true"]
     result = subprocess.run(command, capture_output=True, timeout=45)
     if result.returncode:
-        raise ValueError("Windows could not read the Security channel. Check your event-log read permission or import an authorized XML export.")
+        raw = result.stderr or result.stdout
+        encoding = "utf-16" if raw.startswith((b"\xff\xfe", b"\xfe\xff")) else "utf-16-le" if b"\x00" in raw else "mbcs"
+        detail = raw.decode(encoding, errors="replace").strip() if raw else ""
+        raise ValueError(f"Windows event query failed (exit {result.returncode}).\n{detail}\nYou can also import a Security log XML export.")
     return result.stdout
 
 
@@ -94,13 +97,17 @@ def compile_sql(spec, account_mode):
     return SELECT + clause + " AND outcome = ? AND ts BETWEEN ? AND ? ORDER BY ts DESC, host, record LIMIT 200", bind
 
 
+def other_account(account):
+    return "Aman" if account.casefold() != "aman" else "Neha"
+
+
 def investigate(old, new, now, mode, path):
     sql1, bind1 = compile_sql(old, "Exact")
     sql2, bind2 = compile_sql(new, mode)
     account, status, hours = new
     lower = now - hours * 3600
     other = "success" if status == "failed" else "failed"
-    cases = [("match", account, status, now), ("other account", account+"~", status, now),
+    cases = [("match", account, status, now), ("other account", other_account(account), status, now),
              ("case variant", account.swapcase(), status, now), ("other outcome", account, other, now),
              ("window start", account, status, lower), ("before window", account, status, lower-1),
              ("future", account, status, now+1), ("original window start", account, status, now-old[2]*3600)]
@@ -197,6 +204,9 @@ def main():
             rows = normalize(raw)
             added = save(rows, STORE)
             reload_accounts()
+            if not rows:
+                source.set("No 4624 or 4625 records in this source. Select a Security-channel export containing sign-in events.")
+                return
             source.set(f"{len(rows)} matching sign-in records read. {added} newly stored. Searches cover imported events only.")
         except (ValueError, OSError, sqlite3.Error, ET.ParseError, subprocess.TimeoutExpired) as err:
             messagebox.showerror("Import",str(err))
